@@ -22,7 +22,7 @@
 #
 
 # The Alpine Linux image that should be used as the basis for the guacd image
-ARG ALPINE_BASE_IMAGE=latest
+ARG ALPINE_BASE_IMAGE=3.18
 FROM alpine:${ALPINE_BASE_IMAGE} AS builder
 
 # Install build dependencies
@@ -39,7 +39,7 @@ RUN apk add --no-cache                \
         libtool                       \
         libwebp-dev                   \
         make                          \
-        openssl1.1         \
+        openssl1.1-compat-dev         \
         pango-dev                     \
         pulseaudio-dev                \
         util-linux-dev
