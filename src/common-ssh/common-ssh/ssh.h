@@ -114,10 +114,6 @@ void guac_common_ssh_uninit();
  *
  * @param user
  *     The user to authenticate as, once connected.
- *
- * @param timeout
- *     The number of seconds to attempt to connect to the SSH server before
- *     timing out.
  * 
  * @param keepalive
  *     How frequently the connection should send keepalive packets, in
@@ -142,7 +138,7 @@ void guac_common_ssh_uninit();
  */
 guac_common_ssh_session* guac_common_ssh_create_session(guac_client* client,
         const char* hostname, const char* port, guac_common_ssh_user* user,
-        int timeout, int keepalive, const char* host_key,
+        int keepalive, const char* host_key,
         guac_ssh_credential_handler* credential_handler);
 
 /**

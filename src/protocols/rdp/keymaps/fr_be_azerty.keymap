@@ -17,7 +17,7 @@
 # under the License.
 #
 
-parent  "base_altgr"
+parent  "base"
 name    "fr-be-azerty"
 freerdp "KBD_BELGIAN_FRENCH"
 

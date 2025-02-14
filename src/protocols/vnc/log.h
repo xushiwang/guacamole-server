@@ -24,6 +24,7 @@
 
 #include "client.h"
 #include "common/iconv.h"
+#include "common/surface.h"
 
 #include <cairo/cairo.h>
 #include <guacamole/client.h>

@@ -32,7 +32,6 @@
 
 #include <cairo/cairo.h>
 #include <glib-object.h>
-#include <guacamole/assert.h>
 #include <guacamole/client.h>
 #include <guacamole/mem.h>
 #include <guacamole/protocol.h>
@@ -203,19 +202,6 @@ int __guac_terminal_set(guac_terminal_display* display, int row, int col, int co
 
 }
 
-/**
- * Calculate the size of margins around the terminal based on DPI.
- *
- * @param dpi
- *     The resolution of the display in DPI.
- *
- * @return
- *     Calculated size of margin in pixels.
- */
-static int get_margin_by_dpi(int dpi) {
-    return dpi * GUAC_TERMINAL_MARGINS / GUAC_TERMINAL_MM_PER_INCH;
-}
-
 guac_terminal_display* guac_terminal_display_alloc(guac_client* client,
         const char* font_name, int font_size, int dpi,
         guac_terminal_color* foreground, guac_terminal_color* background,
@@ -242,13 +228,6 @@ guac_terminal_display* guac_terminal_display_alloc(guac_client* client,
     /* Select layer is a child of the display layer */
     guac_protocol_send_move(client->socket, display->select_layer,
             display->display_layer, 0, 0, 0);
-
-    /* Calculate margin size by DPI */
-    display->margin = get_margin_by_dpi(dpi);
-
-    /* Offset the Default Layer to make margins even on all sides */
-    guac_protocol_send_move(client->socket, display->display_layer,
-        GUAC_DEFAULT_LAYER, display->margin, display->margin, 0);
 
     display->default_foreground = display->glyph_foreground = *foreground;
     display->default_background = display->glyph_background = *background;
@@ -349,52 +328,39 @@ int guac_terminal_display_lookup_color(guac_terminal_display* display,
 void guac_terminal_display_copy_columns(guac_terminal_display* display, int row,
         int start_column, int end_column, int offset) {
 
+    int i;
+    guac_terminal_operation* src_current;
+    guac_terminal_operation* current;
+
     /* Ignore operations outside display bounds */
     if (row < 0 || row >= display->height)
         return;
 
-    /* Fit relevant extents of operation within bounds (NOTE: Because this
-     * operation is relative and represents the destination with an offset,
-     * there's no need to recalculate the destination region - the offset
-     * simply remains the same) */
-    if (offset >= 0) {
-        start_column = guac_terminal_fit_to_range(start_column, 0,            display->width - offset - 1);
-        end_column   = guac_terminal_fit_to_range(end_column,   start_column, display->width - offset - 1);
-    }
-    else {
-        start_column = guac_terminal_fit_to_range(start_column, -offset,      display->width - 1);
-        end_column   = guac_terminal_fit_to_range(end_column,   start_column, display->width - 1);
-    }
+    /* Fit range within bounds */
+    start_column = guac_terminal_fit_to_range(start_column,          0, display->width - 1);
+    end_column   = guac_terminal_fit_to_range(end_column,            0, display->width - 1);
+    start_column = guac_terminal_fit_to_range(start_column + offset, 0, display->width - 1) - offset;
+    end_column   = guac_terminal_fit_to_range(end_column   + offset, 0, display->width - 1) - offset;
 
-    /* Determine source and destination locations */
+    src_current = &(display->operations[row * display->width + start_column]);
+    current = &(display->operations[row * display->width + start_column + offset]);
 
-    size_t row_offset = guac_mem_ckd_mul_or_die(row, display->width);
-    size_t src_offset = guac_mem_ckd_add_or_die(row_offset, start_column);
-
-    size_t dst_offset;
-    if (offset >= 0)
-        dst_offset = guac_mem_ckd_add_or_die(src_offset, offset);
-    else
-        dst_offset = guac_mem_ckd_sub_or_die(src_offset, -offset);
-
-    guac_terminal_operation* src = &(display->operations[src_offset]);
-    guac_terminal_operation* dst = &(display->operations[dst_offset]);
-
-    /* Copy data */
-    memmove(dst, src, guac_mem_ckd_mul_or_die(sizeof(guac_terminal_operation), (end_column - start_column + 1)));
+    /* Move data */
+    memmove(current, src_current,
+        (end_column - start_column + 1) * sizeof(guac_terminal_operation));
 
     /* Update operations */
-    for (int column = start_column; column <= end_column; column++) {
+    for (i=start_column; i<=end_column; i++) {
 
         /* If no operation here, set as copy */
-        if (dst->type == GUAC_CHAR_NOP) {
-            dst->type = GUAC_CHAR_COPY;
-            dst->row = row;
-            dst->column = column;
+        if (current->type == GUAC_CHAR_NOP) {
+            current->type = GUAC_CHAR_COPY;
+            current->row = row;
+            current->column = i;
         }
 
         /* Next column */
-        dst++;
+        current++;
 
     }
 
@@ -403,42 +369,28 @@ void guac_terminal_display_copy_columns(guac_terminal_display* display, int row,
 void guac_terminal_display_copy_rows(guac_terminal_display* display,
         int start_row, int end_row, int offset) {
 
-    /* Fit relevant extents of operation within bounds (NOTE: Because this
-     * operation is relative and represents the destination with an offset,
-     * there's no need to recalculate the destination region - the offset
-     * simply remains the same) */
-    if (offset >= 0) {
-        start_row = guac_terminal_fit_to_range(start_row, 0,         display->height - offset - 1);
-        end_row   = guac_terminal_fit_to_range(end_row,   start_row, display->height - offset - 1);
-    }
-    else {
-        start_row = guac_terminal_fit_to_range(start_row, -offset,   display->height - 1);
-        end_row   = guac_terminal_fit_to_range(end_row,   start_row, display->height - 1);
-    }
+    int row, col;
+    guac_terminal_operation* src_current_row;
+    guac_terminal_operation* current_row;
 
-    /* Determine source and destination locations */
+    /* Fit range within bounds */
+    start_row = guac_terminal_fit_to_range(start_row,          0, display->height - 1);
+    end_row   = guac_terminal_fit_to_range(end_row,            0, display->height - 1);
+    start_row = guac_terminal_fit_to_range(start_row + offset, 0, display->height - 1) - offset;
+    end_row   = guac_terminal_fit_to_range(end_row   + offset, 0, display->height - 1) - offset;
 
-    size_t dst_start_row;
-    if (offset >= 0)
-        dst_start_row = guac_mem_ckd_add_or_die(start_row, offset);
-    else
-        dst_start_row = guac_mem_ckd_sub_or_die(start_row, -offset);
+    src_current_row = &(display->operations[start_row * display->width]);
+    current_row = &(display->operations[(start_row + offset) * display->width]);
 
-    size_t src_offset = guac_mem_ckd_mul_or_die(start_row, display->width);
-    size_t dst_offset = guac_mem_ckd_mul_or_die(dst_start_row, display->width);
-
-    guac_terminal_operation* src = &(display->operations[src_offset]);
-    guac_terminal_operation* dst = &(display->operations[dst_offset]);
-
-    /* Copy data */
-    memmove(dst, src, guac_mem_ckd_mul_or_die(sizeof(guac_terminal_operation),
-                display->width, (end_row - start_row + 1)));
+    /* Move data */
+    memmove(current_row, src_current_row,
+        (end_row - start_row + 1) * sizeof(guac_terminal_operation) * display->width);
 
     /* Update operations */
-    for (int row = start_row; row <= end_row; row++) {
+    for (row=start_row; row<=end_row; row++) {
 
-        guac_terminal_operation* current = dst;
-        for (int col = 0; col < display->width; col++) {
+        guac_terminal_operation* current = current_row;
+        for (col=0; col<display->width; col++) {
 
             /* If no operation here, set as copy */
             if (current->type == GUAC_CHAR_NOP) {
@@ -453,7 +405,7 @@ void guac_terminal_display_copy_rows(guac_terminal_display* display,
         }
 
         /* Next row */
-        dst += display->width;
+        current_row += display->width;
 
     }
 
@@ -461,6 +413,9 @@ void guac_terminal_display_copy_rows(guac_terminal_display* display,
 
 void guac_terminal_display_set_columns(guac_terminal_display* display, int row,
         int start_column, int end_column, guac_terminal_char* character) {
+
+    int i;
+    guac_terminal_operation* current;
 
     /* Do nothing if glyph is empty */
     if (character->width == 0)
@@ -474,16 +429,10 @@ void guac_terminal_display_set_columns(guac_terminal_display* display, int row,
     start_column = guac_terminal_fit_to_range(start_column, 0, display->width - 1);
     end_column   = guac_terminal_fit_to_range(end_column,   0, display->width - 1);
 
-    size_t start_offset = guac_mem_ckd_add_or_die(guac_mem_ckd_mul_or_die(row, display->width), start_column);
-    guac_terminal_operation* current = &(display->operations[start_offset]);
+    current = &(display->operations[row * display->width + start_column]);
 
     /* For each column in range */
-    for (int col = start_column; col <= end_column; col += character->width) {
-
-        /* Flush pending copy operation before adding new SET operation. This
-         * avoid operation conflicts that cause inconsistent display. */
-        if (current->type == GUAC_CHAR_COPY)
-            guac_terminal_display_flush(display);
+    for (i = start_column; i <= end_column; i += character->width) {
 
         /* Set operation */
         current->type      = GUAC_CHAR_SET;
@@ -498,12 +447,8 @@ void guac_terminal_display_set_columns(guac_terminal_display* display, int row,
 
 void guac_terminal_display_resize(guac_terminal_display* display, int width, int height) {
 
-    /* Resize display only if dimensions have changed */
-    if (width == display->width && height == display->height)
-        return;
-
-    GUAC_ASSERT(width >= 0 && width <= GUAC_TERMINAL_MAX_COLUMNS);
-    GUAC_ASSERT(height >= 0 && height <= GUAC_TERMINAL_MAX_ROWS);
+    guac_terminal_operation* current;
+    int x, y;
 
     /* Fill with background color */
     guac_terminal_char fill = {
@@ -524,11 +469,11 @@ void guac_terminal_display_resize(guac_terminal_display* display, int width, int
             sizeof(guac_terminal_operation));
 
     /* Init each operation buffer row */
-    guac_terminal_operation* current = display->operations;
-    for (int y = 0; y < height; y++) {
+    current = display->operations;
+    for (y=0; y<height; y++) {
 
         /* Init entire row to NOP */
-        for (int x = 0; x < width; x++) {
+        for (x=0; x<width; x++) {
 
             /* If on old part of screen, do not clear */
             if (x < display->width && y < display->height)
@@ -882,10 +827,6 @@ void guac_terminal_display_dup(
     guac_protocol_send_move(socket, display->select_layer,
             display->display_layer, 0, 0, 0);
 
-    /* Offset the Default Layer to make margins even on all sides */
-    guac_protocol_send_move(socket, display->display_layer,
-        GUAC_DEFAULT_LAYER, display->margin, display->margin, 0);
-
     /* Send select layer size */
     guac_protocol_send_size(socket, display->select_layer,
             display->char_width  * display->width,
@@ -1077,7 +1018,6 @@ int guac_terminal_display_set_font(guac_terminal_display* display,
     /* Resize display if dimensions have changed */
     if (new_width != display->width || new_height != display->height)
         guac_terminal_display_resize(display, new_width, new_height);
-
 
     return 0;
 

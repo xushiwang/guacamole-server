@@ -28,14 +28,6 @@
 #include "terminal.h"
 #include "typescript.h"
 
-#include <guacamole/flag.h>
-
-/**
- * The bitwise flag set on the modified flag of guac_terminal when the terminal
- * state has been modified such that it is appropriate to flush a new frame.
- */
-#define GUAC_TERMINAL_MODIFIED 1
-
 /**
  * Handler for characters printed to the terminal. When a character is printed,
  * the current char handler for the terminal is called and given that
@@ -93,12 +85,24 @@ struct guac_terminal {
     pthread_mutex_t lock;
 
     /**
+     * The mutex associated with the modified condition and flag, locked
+     * whenever a thread is waiting on the modified condition, the modified
+     * condition is being signalled, or the modified flag is being changed.
+     */
+    pthread_mutex_t modified_lock;
+
+    /**
      * Flag set whenever an operation has affected the terminal in a way that
-     * will require a frame flush.
-     *
-     * @see GUAC_TERMINAL_MODIFIED
-      */
-    guac_flag modified;
+     * will require a frame flush. When this flag is set, the modified_cond
+     * condition will be signalled. The modified_lock will always be
+     * acquired before this flag is altered.
+     */
+    int modified;
+
+    /**
+     * Condition which is signalled when the modified flag has been set
+     */
+    pthread_cond_t modified_cond;
 
     /**
      * Pipe which will be the source of user input. When a terminal code
@@ -301,31 +305,11 @@ struct guac_terminal {
     guac_terminal_display* display;
 
     /**
-     * The default, "normal" buffer containing all characters that should be
-     * displayed within the terminal emulator while not using the alternate
-     * buffer. Unless switched to the alternate buffer, all terminal operations
-     * will involve this buffer. The buffer that is relevant to terminal
-     * operations is determined by the current value of current_buffer.
+     * Current terminal display state. All characters present on the screen
+     * are within this buffer. This has nothing to do with the display, which
+     * facilitates transfer of a set of changes to the remote display.
      */
-    guac_terminal_buffer* normal_buffer;
-
-    /**
-     * The non-default, "alternate" buffer containing all characters that should
-     * be displayed within the terminal emulator while not using the normal
-     * buffer. Unless switched to the normal buffer, all terminal operations
-     * will involve this buffer. The buffer that is relevant to terminal
-     * operations is determined by the current value of current_buffer.
-     */
-    guac_terminal_buffer* alternate_buffer;
-
-    /**
-     * Pointer to the buffer representing the current text contents of the
-     * terminal, including any scrollback. All characters present on the screen
-     * are within this buffer. The buffer pointed to by this pointer may change
-     * over the course of the terminal session if console codes switch between
-     * the normal and alternate buffers.
-     */
-    guac_terminal_buffer* current_buffer;
+    guac_terminal_buffer* buffer;
 
     /**
      * Automatically place a tabstop every N characters. If zero, then no
@@ -422,11 +406,6 @@ struct guac_terminal {
     int mod_ctrl;
 
     /**
-     * Whether the meta (command on Mac) key is currently being held down.
-     */
-    int mod_meta;
-
-    /**
      * Whether the shift key is currently being held down.
      */
     int mod_shift;
@@ -480,16 +459,6 @@ struct guac_terminal {
      * automatically streamed to the client.
      */
     bool disable_copy;
-
-    /**
-     * The time betwen two left clicks.
-     */
-    guac_timestamp click_timer;
-
-    /**
-     * Counter for left clicks.
-     */
-    int click_counter;
 
 };
 
@@ -552,13 +521,13 @@ int guac_terminal_clear_range(guac_terminal* term,
 /**
  * Scrolls the terminal's current scroll region up by one row.
  */
-void guac_terminal_scroll_up(guac_terminal* term,
+int guac_terminal_scroll_up(guac_terminal* term,
         int start_row, int end_row, int amount);
 
 /**
  * Scrolls the terminal's current scroll region down by one row.
  */
-void guac_terminal_scroll_down(guac_terminal* term,
+int guac_terminal_scroll_down(guac_terminal* term,
         int start_row, int end_row, int amount);
 
 /**
@@ -682,12 +651,5 @@ void guac_terminal_copy_rows(guac_terminal* terminal,
  */
 void guac_terminal_flush(guac_terminal* terminal);
 
-/**
- * Redraw default layer text and background.
- *
- * @param terminal
- *      The terminal to redraw.
- */
-void guac_terminal_redraw_default_layer(guac_terminal* terminal);
-
 #endif
+

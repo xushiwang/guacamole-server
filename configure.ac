@@ -18,7 +18,7 @@
 #
 
 AC_PREREQ([2.61])
-AC_INIT([guacamole-server], [1.6.0])
+AC_INIT([guacamole-server], [1.5.5])
 AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 AM_SILENT_RULES([yes])
@@ -37,21 +37,12 @@ AC_PROG_CC
 AC_PROG_CC_C99
 AC_PROG_LIBTOOL
 
-# Initialize pkg-config support
-PKG_PROG_PKG_CONFIG()
-
 # Headers
 AC_CHECK_HEADERS([fcntl.h stdlib.h string.h sys/socket.h time.h sys/time.h syslog.h unistd.h cairo/cairo.h pngstruct.h])
 
 # Source characteristics
-AC_DEFINE([_GNU_SOURCE],   [1], [Uses GNU-specific APIs (if available)])
 AC_DEFINE([_XOPEN_SOURCE], [700], [Uses X/Open and POSIX APIs])
 AC_DEFINE([__BSD_VISIBLE], [1], [Uses BSD-specific APIs (if available)])
-AC_DEFINE([_GNU_SOURCE], [1], [Use GNU sources (if available)])
-
-# Check for availability of non-portable sched_getaffinity() function (one of
-# several possible routes for determining the number of available processors)
-AC_CHECK_FUNCS([sched_getaffinity])
 
 # Check for whether math library is required
 AC_CHECK_LIB([m], [cos],
@@ -77,9 +68,6 @@ AC_CHECK_LIB([pthread], [pthread_create], [PTHREAD_LIBS=-lpthread
               AC_DEFINE([HAVE_LIBPTHREAD],,
                         [Whether libpthread was found])])
 
-# Check for pthread_setattr_default_np
-AC_CHECK_DECLS([pthread_setattr_default_np], , , [[#include <pthread.h>]])
-            
 # librt
 AC_CHECK_FUNC([timer_create], [AC_MSG_RESULT([timer_create was found without librt.])],
               [AC_CHECK_LIB([rt], [timer_create],
@@ -157,34 +145,34 @@ AC_SUBST(CUNIT_LIBS)
 AC_CHECK_FUNCS([clock_gettime gettimeofday memmove memset select strdup nanosleep])
 
 AC_CHECK_DECL([png_get_io_ptr],
-    [AC_DEFINE([HAVE_PNG_GET_IO_PTR],,
+	[AC_DEFINE([HAVE_PNG_GET_IO_PTR],,
                [Whether png_get_io_ptr() is defined])],,
-    [#include <png.h>])
+	[#include <png.h>])
 
 AC_CHECK_DECL([cairo_format_stride_for_width],
-    [AC_DEFINE([HAVE_CAIRO_FORMAT_STRIDE_FOR_WIDTH],,
+	[AC_DEFINE([HAVE_CAIRO_FORMAT_STRIDE_FOR_WIDTH],,
                [Whether cairo_format_stride_for_width() is defined])],,
-    [#include <cairo/cairo.h>])
+	[#include <cairo/cairo.h>])
 
 AC_CHECK_DECL([poll],
-    [AC_DEFINE([HAVE_POLL],,
+	[AC_DEFINE([HAVE_POLL],,
                [Whether poll() is defined])],,
-    [#include <poll.h>])
+	[#include <poll.h>])
 
 AC_CHECK_DECL([strlcpy],
-    [AC_DEFINE([HAVE_STRLCPY],,
+	[AC_DEFINE([HAVE_STRLCPY],,
                [Whether strlcpy() is defined])],,
-    [#include <string.h>])
+	[#include <string.h>])
 
 AC_CHECK_DECL([strlcat],
-    [AC_DEFINE([HAVE_STRLCAT],,
+	[AC_DEFINE([HAVE_STRLCAT],,
                [Whether strlcat() is defined])],,
-    [#include <string.h>])
+	[#include <string.h>])
 
 AC_CHECK_DECL([strnstr],
-    [AC_DEFINE([HAVE_STRNSTR],,
+	[AC_DEFINE([HAVE_STRNSTR],,
                [Whether strnstr() is defined])],,
-    [#include <string.h>])
+	[#include <string.h>])
 
 # Typedefs
 AC_TYPE_SIZE_T
@@ -267,11 +255,10 @@ AM_CONDITIONAL([ENABLE_AVCODEC], [test "x${have_libavcodec}" = "xyes"])
 
 have_libavformat=disabled
 AC_ARG_WITH([libavformat],
-            [AS_HELP_STRING([--with-libavformat],
-                            [use libavformat when encoding video @<:@default=check@:>@])],
-            [],
+	    [AS_HELP_STRING([--with-libavformat],
+	                    [use libavformat when encoding video @<:@default=check@:>@])],
+            [].
             [with_libavformat=check])
-
 if test "x$with_libavformat" != "xno"
 then
     have_libavformat=yes
@@ -657,72 +644,11 @@ then
 fi
 
 #
-# libVNCserver support for the rfbSetDesktopSizeMsg message and the screen
-# data structure, both of which are required in order to properly request that
-# a remote server resize its screen to match the dimensions that the client
-# sends. If libvnc lacks either this message or the screen data structure
-# remote resize will be completely disabled.
+# FreeRDP 2 (libfreerdp2, libfreerdp-client2, and libwinpr2)
 #
 
-if test "x${have_libvncserver}" = "xyes"
-then
-
-    have_vnc_resize_support=yes
-    AC_CHECK_TYPE([rfbSetDesktopSizeMsg],
-                     [], [have_vnc_resize_support=no],
-                     [[#include <rfb/rfbproto.h>]])
-
-    AC_CHECK_MEMBERS([rfbClient.screen],
-                     [], [have_vnc_resize_support=no],
-                     [[#include <rfb/rfbclient.h>]])
-
-    if test "x${have_vnc_resize_support}" = "xno"
-    then
-        AC_MSG_WARN([
-      --------------------------------------------------------
-       The libvncclient library lacks support for either the
-       rfbSetDesktopSizeMsg message or for extended screen
-       support. Resizing of remote displays will be disabled.
-      --------------------------------------------------------])
-    else
-        AC_DEFINE([LIBVNC_HAS_RESIZE_SUPPORT],,
-                  [Whether VNC client will support sending desktop size messages.])
-    fi
-
-fi
-
-#
-# libVNCserver support for the requestedResize member, which enables the 
-# client to pause frame buffer updates during a resize operation. If support
-# for this is missing, Guacamole may still attempt to send the resize requests
-# to the remote display, but there may be odd display behavior just before,
-# during, or just after the resize, if a display update message happens to
-# coincide closely enough with a display resize message.
-#
-
-if test "x${have_libvncserver}" = "xyes"
-then
-
-    have_vnc_requestedresize=yes
-    AC_CHECK_MEMBERS([rfbClient.requestedResize],
-                     [], [have_vnc_requestedresize=no],
-                     [[#include <rfb/rfbclient.h>]])
-
-    if test "x${have_vnc_requestedresize}" = "xyes"
-    then
-        AC_DEFINE([LIBVNC_CLIENT_HAS_REQUESTED_RESIZE],,
-                  [Whether rfbClient contains the requestedResize member.])
-    fi
-
-fi
-
-#
-# FreeRDP (libfreerdpX, libfreerdp-clientX, and libwinprX)
-#
-
-freerdp_version=
-have_freerdp=disabled
-FREERDP_PLUGIN_DIR=
+have_freerdp2=disabled
+FREERDP2_PLUGIN_DIR=
 
 AC_ARG_WITH([rdp],
             [AS_HELP_STRING([--with-rdp],
@@ -734,7 +660,7 @@ AC_ARG_WITH([rdp],
 AC_ARG_WITH(freerdp_plugin_dir,
             [AS_HELP_STRING([--with-freerdp-plugin-dir=<path>],
                             [install FreeRDP plugins to the given directory @<:@default=check@:>@])
-            ],FREERDP_PLUGIN_DIR=$withval)
+            ],FREERDP2_PLUGIN_DIR=$withval)
 
 # Preserve CPPFLAGS so it can be restored later, following the addition of
 # options specific to FreeRDP tests
@@ -742,38 +668,21 @@ OLDCPPFLAGS="$CPPFLAGS"
 
 if test "x$with_rdp" != "xno"
 then
-    freerdp_version="(3.x)"
-    have_freerdp=yes
-    PKG_CHECK_MODULES([RDP], [freerdp3 freerdp-client3 winpr3],
-                      [CPPFLAGS="${RDP_CFLAGS} -Werror $CPPFLAGS"]
-                      [AS_IF([test "x${FREERDP_PLUGIN_DIR}" = "x"],
-                             [FREERDP_PLUGIN_DIR="`$PKG_CONFIG --variable=libdir freerdp3`/freerdp3"])],
-                      [AC_MSG_WARN([
-  --------------------------------------------
-   Unable to find FreeRDP3 (libfreerdp3 / libfreerdp-client3 / libwinpr3).
-   Checking for FreeRDP2.
-  --------------------------------------------])
-                       have_freerdp=no])
-fi
-
-if test "x$with_rdp" != "xno" -a "x${have_freerdp}" = "xno"
-then
-    freerdp_version="(2.x)"
-    have_freerdp=yes
+    have_freerdp2=yes
     PKG_CHECK_MODULES([RDP], [freerdp2 freerdp-client2 winpr2],
                       [CPPFLAGS="${RDP_CFLAGS} -Werror $CPPFLAGS"]
-                      [AS_IF([test "x${FREERDP_PLUGIN_DIR}" = "x"],
-                             [FREERDP_PLUGIN_DIR="`$PKG_CONFIG --variable=libdir freerdp2`/freerdp2"])],
+                      [AS_IF([test "x${FREERDP2_PLUGIN_DIR}" = "x"],
+                             [FREERDP2_PLUGIN_DIR="`$PKG_CONFIG --variable=libdir freerdp2`/freerdp2"])],
                       [AC_MSG_WARN([
   --------------------------------------------
-   Unable to find FreeRDP2 (libfreerdp2 / libfreerdp-client2 / libwinpr2)
+   Unable to find FreeRDP (libfreerdp2 / libfreerdp-client2 / libwinpr2)
    RDP will be disabled.
   --------------------------------------------])
-                       have_freerdp=no])
+                       have_freerdp2=no])
 fi
 
 # Available color conversion functions
-if test "x${have_freerdp}" = "xyes"
+if test "x$have_freerdp2" = "xyes"
 then
 
     # FreeRDP 2.0.0-rc3 and older referred to FreeRDPConvertColor() as
@@ -795,7 +704,7 @@ AC_ARG_ENABLE(allow_freerdp_snapshots,
                               [allow building against unknown development snapshots of FreeRDP])
               ],allow_freerdp_snapshots=yes)
 
-if test "x${have_freerdp}" = "xyes" -a "x${allow_freerdp_snapshots}" != "xyes"
+if test "x${have_freerdp2}" = "xyes" -a "x${allow_freerdp_snapshots}" != "xyes"
 then
 
     AC_MSG_CHECKING([whether FreeRDP appears to be a development version])
@@ -823,7 +732,7 @@ then
 fi
 
 # Variation in memory internal allocation/free behavior for bitmaps
-if test "x${have_freerdp}" = "xyes"
+if test "x${have_freerdp2}" = "xyes"
 then
 
     # FreeRDP 2.0.0-rc0 and older automatically free rdpBitmap and its
@@ -847,7 +756,7 @@ then
 fi
 
 # Variation in memory internal allocation/free behavior for channel streams
-if test "x${have_freerdp}" = "xyes"
+if test "x${have_freerdp2}" = "xyes"
 then
 
     # FreeRDP 2.0.0-rc3 through 2.0.0-rc4 automatically free the wStream
@@ -869,7 +778,7 @@ then
 fi
 
 # Glyph callback variants
-if test "x${have_freerdp}" = "xyes"
+if test "x${have_freerdp2}" = "xyes"
 then
 
     # FreeRDP 2.0.0-rc3 and older used UINT32 for integer parameters to all
@@ -902,7 +811,7 @@ then
 fi
 
 # CLIPRDR callback variants
-if test "x${have_freerdp}" = "xyes"
+if test "x${have_freerdp2}" = "xyes"
 then
 
     # FreeRDP 2.0.0-rc3 and older did not use const for CLIPRDR callbacks
@@ -932,7 +841,7 @@ then
 fi
 
 # RAIL callback variants
-if test "x${have_freerdp}" = "xyes"
+if test "x${have_freerdp2}" = "xyes"
 then
 
     # FreeRDP 2.0.0-rc3 and older did not use const for RAIL callbacks
@@ -962,7 +871,7 @@ then
 fi
 
 # Support for receiving unannounced orders from the RDP server
-if test "x${have_freerdp}" = "xyes"
+if test "x${have_freerdp2}" = "xyes"
 then
     AC_CHECK_MEMBERS([rdpSettings.AllowUnanouncedOrdersFromServer],,
                      [AC_MSG_WARN([
@@ -978,188 +887,17 @@ fi
 
 # Updated certificate verification callback (introduced with 2.0.0, not present
 # in 2.0.0-rc4 or earlier)
-if test "x${have_freerdp}" = "xyes"
+if test "x${have_freerdp2}" = "xyes"
 then
     AC_CHECK_MEMBERS([freerdp.VerifyCertificateEx],,,
-                      [[#include <freerdp/freerdp.h>]])
-fi
-
-if test "x${have_freerdp}" = "xyes"
-then
-    AC_CHECK_DECLS([winpr_aligned_free],
-                   [AC_DEFINE([HAVE_WINPR_ALIGNED],,
-                              [Defined if winpr_aligned_free() and winpr_aligned_malloc() are available])],,
-                   [#include <winpr/crt.h>])
-fi
-
-if test "x${have_freerdp}" = "xyes"
-then
-    AC_MSG_CHECKING([whether CLIPRDR structs have a common CLIPRDR_HEADER])
-    AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
-        #include <freerdp/client/cliprdr.h>
-        int main() {
-            CLIPRDR_FORMAT_LIST list;
-            list.common.msgType = 0;
-            (void)list;
-            return 0;
-        }
-        ]])],
-        [AC_MSG_RESULT([yes])]
-        [AC_DEFINE([HAVE_CLIPRDR_HEADER],,
-                   [Defined if CLIPRDR structs have a common CLIPRDR_HEADER])],
-        [AC_MSG_RESULT([no])])
-fi
-
-if test "x${have_freerdp}" = "xyes"
-then
-    AC_CHECK_DECLS([FreeRDPReadColor],
-                   [AC_DEFINE([USE_UPDATED_RW_COLOR_FUNCS],,
-                              [Defined if FreeRDPReadColor() and FreeRDPWriteColor() are available])],,
-                   [#include <freerdp/codec/color.h>])
-fi
-
-if test "x${have_freerdp}" = "xyes"
-then
-    AC_CHECK_DECLS([freerdp_settings_set_pointer],
-                   [AC_DEFINE([HAVE_SETTERS_GETTERS],,
-                              [Defined if freerdp_settings_set_pointer is available])],,
-                   [#include <freerdp/settings.h>])
-fi
-
-if test "x${have_freerdp}" = "xyes"
-then
-    AC_MSG_CHECKING([whether freerdp structs have a context])
-    AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
-        #include <freerdp/freerdp.h>
-        int main() {
-            freerdp* instance = freerdp_new();
-            /* We cast to void to prevent unused variable warnings */
-            (void)instance->context->input;
-            (void)instance->context->settings;
-            freerdp_free(instance);
-            return 0;
-        }
-    ]])],
-    [AC_MSG_RESULT([yes])]
-    [AC_DEFINE([FREERDP_HAS_CONTEXT],,
-               [FreeRDP structs have a context])],
-    [AC_MSG_RESULT([no])])
-fi
-
-if test "x${have_freerdp}" = "xyes"
-then
-    AC_CHECK_DECL([freerdp_shall_disconnect_context],
-                  [AC_DEFINE([HAVE_DISCONNECT_CONTEXT],,
-                             [Defined if 'freerdp_shall_disconnect_context' is available in FreeRDP])],,
-                  [#include <freerdp/freerdp.h>])
-fi
-if test "x${have_freerdp}" = "xyes"
-then
-    # Check whether FreeRDP 3.x requires const for GetPluginData
-    AC_MSG_CHECKING([whether GetPluginData requires const for the returned args])
-    AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
-        #include <freerdp/dvc.h>
-        /* A dummy function that matches the expected signature of GetPluginData */
-        const ADDIN_ARGV* dummy_GetPluginData(IDRDYNVC_ENTRY_POINTS* pEntryPoints) {
-            return NULL;
-        }
-
-        int main() {
-            /* Create a dummy IDRDYNVC_ENTRY_POINTS struct */
-            IDRDYNVC_ENTRY_POINTS entryPoints;
-
-            /* Manually set the GetPluginData pointer for testing */
-            entryPoints.GetPluginData = dummy_GetPluginData;
-            const ADDIN_ARGV* result = entryPoints.GetPluginData(&entryPoints);
-
-            /* Casting to void to avoid unused variable warning */
-            (void)result;
-
-            return 0;
-        }
-    ]])],
-    [AC_MSG_RESULT([yes])]
-    [AC_DEFINE([PLUGIN_DATA_CONST],,
-               [Defined if GetPluginData returns a pointer to a const ADDIN_ARGV])],
-    [AC_MSG_RESULT([no])])
-fi
-
-if test "x${have_freerdp}" = "xyes"
-then
-    # Check whether glyph.New expects a const rdpGlyph* parameter
-    AC_MSG_CHECKING([whether glyph.New expects a const rdpGlyph* parameter])
-    AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
-        #include <freerdp/graphics.h>
-        BOOL mock_glyph_new(rdpContext* context, const rdpGlyph* glyph) {
-            return TRUE;
-        }
-
-        int main() {
-            rdpGlyph* glyph = (rdpGlyph*) malloc(sizeof(rdpGlyph));
-            glyph->New = mock_glyph_new;
-            free(glyph);
-            return 0;
-        }
-    ]])],
-    [AC_MSG_RESULT([yes])]
-    [AC_DEFINE([RDP_GLYPH_NEW_REQUIRES_CONST],,
-               [Defined if glyph.New expects a const rdpGlyph* parameter])],
-    [AC_MSG_RESULT([no])])
-fi
-
-if test "x${have_freerdp}" = "xyes"
-then
-    # Check whether pointer.Set expects a const rdpPointer* parameter
-    AC_MSG_CHECKING([whether pointer.Set expects a const rdpPointer* parameter])
-    AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
-        #include <freerdp/graphics.h>
-
-        BOOL mock_pointer_set(rdpContext* context, const rdpPointer* pointer) {
-            return TRUE;
-        }
-
-        int main() {
-            rdpPointer* pointer = (rdpPointer*) malloc(sizeof(rdpPointer));
-            pointer->Set = mock_pointer_set;
-            free(pointer);
-            return 0;
-        }
-    ]])],
-    [AC_MSG_RESULT([yes])]
-    [AC_DEFINE([RDP_POINTER_SET_REQUIRES_CONST],,
-               [Defined if pointer.Set expects a const rdpPointer* parameter])],
-    [AC_MSG_RESULT([no])])
-fi
-
-if test "x${have_freerdp}" = "xyes"
-then
-    AC_MSG_CHECKING([whether freerdp instance supports LoadChannels])
-    AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
-        #include <freerdp/freerdp.h>
-
-        /* Mock LoadChannels function with the expected signature */
-        BOOL load_channels(freerdp* instance) {
-            return TRUE;
-        }
-
-        int main() {
-            freerdp* instance = freerdp_new();
-            instance->LoadChannels = load_channels;
-            freerdp_free(instance);
-            return 0;
-        }
-    ]])],
-    [AC_MSG_RESULT([yes])]
-    [AC_DEFINE([RDP_INST_HAS_LOAD_CHANNELS],,
-               [Defined if freerdp instance supports LoadChannels])],
-    [AC_MSG_RESULT([no])])
+                     [[#include <freerdp/freerdp.h>]])
 fi
 
 # Restore CPPFLAGS, removing FreeRDP-specific options needed for testing
 CPPFLAGS="$OLDCPPFLAGS"
 
-AC_SUBST(FREERDP_PLUGIN_DIR)
-AM_CONDITIONAL([ENABLE_RDP], [test "x${have_freerdp}" = "xyes"])
+AC_SUBST(FREERDP2_PLUGIN_DIR)
+AM_CONDITIONAL([ENABLE_RDP], [test "x${have_freerdp2}" = "xyes"])
 
 #
 # libssh2
@@ -1246,8 +984,9 @@ then
 
 fi
 
-AM_CONDITIONAL([ENABLE_SSH_AGENT], [test "x${have_ssh_agent}"   = "xyes" \
-                                      -a "x${enable_ssh_agent}" = "xyes"])
+AM_CONDITIONAL([ENABLE_SSH_AGENT],
+	   [test "x${have_ssh_agent}"   = "xyes" \
+	      -a "x${enable_ssh_agent}" = "xyes"])
 
 #
 # libtelnet
@@ -1495,7 +1234,7 @@ AM_COND_IF([ENABLE_SYSTEMD], [build_systemd="${systemd_dir}"], [build_systemd=no
 # FreeRDP plugins
 #
 
-AM_COND_IF([ENABLE_RDP], [build_rdp_plugins="${FREERDP_PLUGIN_DIR}"], [build_rdp_plugins=no])
+AM_COND_IF([ENABLE_RDP], [build_rdp_plugins="${FREERDP2_PLUGIN_DIR}"], [build_rdp_plugins=no])
 
 #
 # Display summary
@@ -1508,10 +1247,10 @@ $PACKAGE_NAME version $PACKAGE_VERSION
 
    Library status:
 
-     freerdp ............. ${have_freerdp} ${freerdp_version}
+     freerdp2 ............ ${have_freerdp2}
      pango ............... ${have_pango}
      libavcodec .......... ${have_libavcodec}
-     libavformat ......... ${have_libavformat}
+     libavformat.......... ${have_libavformat}
      libavutil ........... ${have_libavutil}
      libssh2 ............. ${have_libssh2}
      libssl .............. ${have_ssl}
@@ -1544,3 +1283,4 @@ $PACKAGE_NAME version $PACKAGE_VERSION
 
 Type \"make\" to compile $PACKAGE_NAME.
 "
+

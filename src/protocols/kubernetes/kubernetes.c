@@ -237,8 +237,7 @@ void* guac_kubernetes_client_thread(void* data) {
                 !settings->recording_exclude_output,
                 !settings->recording_exclude_mouse,
                 0, /* Touch events not supported */
-                settings->recording_include_keys,
-                settings->recording_write_existing);
+                settings->recording_include_keys);
     }
 
     /* Create terminal options with required parameters */
@@ -275,8 +274,7 @@ void* guac_kubernetes_client_thread(void* data) {
         guac_terminal_create_typescript(kubernetes_client->term,
                 settings->typescript_path,
                 settings->typescript_name,
-                settings->create_typescript_path,
-                settings->typescript_write_existing);
+                settings->create_typescript_path);
     }
 
     /* Init libwebsockets context creation parameters */

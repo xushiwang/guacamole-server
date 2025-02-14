@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include "guacamole/assert.h"
 #include "guacamole/error.h"
 #include "guacamole/mem.h"
 #include "guacamole/private/mem.h"
@@ -127,7 +126,8 @@ size_t PRIV_guac_mem_ckd_mul_or_die(size_t factor_count, const size_t* factors) 
     /* Perform request multiplication, aborting the entire process if the
      * calculation overflows */
     size_t result = 0;
-    GUAC_ASSERT(!PRIV_guac_mem_ckd_mul(&result, factor_count, factors));
+    if (PRIV_guac_mem_ckd_mul(&result, factor_count, factors))
+        abort();
 
     return result;
 
@@ -138,7 +138,8 @@ size_t PRIV_guac_mem_ckd_add_or_die(size_t term_count, const size_t* terms) {
     /* Perform request addition, aborting the entire process if the calculation
      * overflows */
     size_t result = 0;
-    GUAC_ASSERT(!PRIV_guac_mem_ckd_add(&result, term_count, terms));
+    if (PRIV_guac_mem_ckd_add(&result, term_count, terms))
+        abort();
 
     return result;
 
@@ -149,7 +150,8 @@ size_t PRIV_guac_mem_ckd_sub_or_die(size_t term_count, const size_t* terms) {
     /* Perform request subtraction, aborting the entire process if the
      * calculation overflows */
     size_t result = 0;
-    GUAC_ASSERT(!PRIV_guac_mem_ckd_sub(&result, term_count, terms));
+    if (PRIV_guac_mem_ckd_sub(&result, term_count, terms))
+        abort();
 
     return result;
 
@@ -236,7 +238,8 @@ void* PRIV_guac_mem_realloc_or_die(void* mem, size_t factor_count, const size_t*
     /* Perform requested resize, aborting the entire process if this cannot be
      * done */
     void* resized_mem = PRIV_guac_mem_realloc(mem, factor_count, factors);
-    GUAC_ASSERT(resized_mem != NULL || guac_error == GUAC_STATUS_SUCCESS);
+    if (resized_mem == NULL && guac_error != GUAC_STATUS_SUCCESS)
+        abort();
 
     return resized_mem;
 

@@ -37,7 +37,6 @@
 #include <libgen.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -321,14 +320,6 @@ int main(int argc, char* argv[]) {
     /* General */
     int retval;
 
-#ifdef HAVE_DECL_PTHREAD_SETATTR_DEFAULT_NP
-    /* Set default stack size */
-    pthread_attr_t default_pthread_attr;
-    pthread_attr_init(&default_pthread_attr);
-    pthread_attr_setstacksize(&default_pthread_attr, GUACD_THREAD_STACK_SIZE);
-    pthread_setattr_default_np(&default_pthread_attr);
-#endif // HAVE_DECL_PTHREAD_SETATTR_DEFAULT_NP
-
     /* Load configuration */
     guacd_config* config = guacd_conf_load();
     if (config == NULL || guacd_conf_parse_args(config, argc, argv))
@@ -435,15 +426,10 @@ int main(int argc, char* argv[]) {
         CRYPTO_set_locking_callback(guacd_openssl_locking_callback);
 #endif
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-        /* Init OpenSSL for OpenSSL Versions < 1.1.0 */
+        /* Init SSL */
         SSL_library_init();
         SSL_load_error_strings();
         ssl_context = SSL_CTX_new(SSLv23_server_method());
-#else
-        /* Set up OpenSSL for OpenSSL Versions >= 1.1.0 */
-        ssl_context = SSL_CTX_new(TLS_server_method());
-#endif
 
         /* Load key */
         if (config->key_file != NULL) {

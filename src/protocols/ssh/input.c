@@ -19,6 +19,8 @@
 
 #include "config.h"
 
+#include "common/cursor.h"
+#include "common/display.h"
 #include "ssh.h"
 #include "terminal/terminal.h"
 

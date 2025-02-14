@@ -194,26 +194,20 @@ int guac_webp_write(guac_socket* socket, guac_stream* stream,
     /* Add additional tuning */
     config.lossless = lossless;
     config.quality = quality;
-    config.thread_level = 0; /* NOT multi-threaded (threading results in unnecessary overhead vs. the worker threads used by guac_display) */
+    config.thread_level = 1; /* Multi threaded */
     config.method = 2; /* Compression method (0=fast/larger, 6=slow/smaller) */
 
     /* Validate configuration */
-    if (!WebPValidateConfig(&config)) {
-        return -1;
-    }
+    WebPValidateConfig(&config);
 
     /* Set up WebP picture */
-    if (!WebPPictureInit(&picture)) {
-        return -1;
-    }
+    WebPPictureInit(&picture);
     picture.use_argb = 1;
     picture.width = width;
     picture.height = height;
 
     /* Allocate and init writer */
-    if (!WebPPictureAlloc(&picture)) {
-        return -1;
-    }
+    WebPPictureAlloc(&picture);
     picture.writer = guac_webp_stream_write;
     picture.custom_ptr = &writer;
     guac_webp_stream_writer_init(&writer, socket, stream);
@@ -250,7 +244,7 @@ int guac_webp_write(guac_socket* socket, guac_stream* stream,
     }
 
     /* Encode image */
-    const int result = WebPEncode(&config, &picture) ? 0 : -1;
+    WebPEncode(&config, &picture);
 
     /* Free picture */
     WebPPictureFree(&picture);
@@ -258,7 +252,7 @@ int guac_webp_write(guac_socket* socket, guac_stream* stream,
     /* Ensure all data is written */
     guac_webp_flush_data(&writer);
 
-    return result;
+    return 0;
 
 }
 

@@ -17,7 +17,7 @@
 # under the License.
 #
 
-parent  "base_altgr"
+parent  "base"
 name    "de-de-qwertz"
 freerdp "KBD_GERMAN"
 

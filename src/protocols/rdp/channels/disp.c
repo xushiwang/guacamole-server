@@ -28,7 +28,6 @@
 #include <freerdp/event.h>
 #include <guacamole/client.h>
 #include <guacamole/mem.h>
-#include <guacamole/rect.h>
 #include <guacamole/timestamp.h>
 
 #include <stdlib.h>
@@ -70,19 +69,19 @@ void guac_rdp_disp_free(guac_rdp_disp* disp) {
  * @param context
  *     The rdpContext associated with the active RDP session.
  *
- * @param args
+ * @param e
  *     Event-specific arguments, mainly the name of the channel, and a
  *     reference to the associated plugin loaded for that channel by FreeRDP.
  */
 static void guac_rdp_disp_channel_connected(rdpContext* context,
-        ChannelConnectedEventArgs* args) {
+        ChannelConnectedEventArgs* e) {
 
     guac_client* client = ((rdp_freerdp_context*) context)->client;
     guac_rdp_client* rdp_client = (guac_rdp_client*) client->data;
     guac_rdp_disp* guac_disp = rdp_client->disp;
 
     /* Ignore connection event if it's not for the Display Update channel */
-    if (strcmp(args->name, DISP_DVC_CHANNEL_NAME) != 0)
+    if (strcmp(e->name, DISP_DVC_CHANNEL_NAME) != 0)
         return;
 
     /* Init module with current display size */
@@ -91,7 +90,7 @@ static void guac_rdp_disp_channel_connected(rdpContext* context,
             guac_rdp_get_height(context->instance));
 
     /* Store reference to the display update plugin once it's connected */
-    DispClientContext* disp = (DispClientContext*) args->pInterface;
+    DispClientContext* disp = (DispClientContext*) e->pInterface;
     guac_disp->disp = disp;
 
     guac_client_log(client, GUAC_LOG_DEBUG, "Display update channel "
@@ -112,19 +111,19 @@ static void guac_rdp_disp_channel_connected(rdpContext* context,
  * @param context
  *     The rdpContext associated with the active RDP session.
  *
- * @param args
+ * @param e
  *     Event-specific arguments, mainly the name of the channel, and a
  *     reference to the associated plugin loaded for that channel by FreeRDP.
  */
 static void guac_rdp_disp_channel_disconnected(rdpContext* context,
-        ChannelDisconnectedEventArgs* args) {
+        ChannelDisconnectedEventArgs* e) {
 
     guac_client* client = ((rdp_freerdp_context*) context)->client;
     guac_rdp_client* rdp_client = (guac_rdp_client*) client->data;
     guac_rdp_disp* guac_disp = rdp_client->disp;
 
     /* Ignore disconnection event if it's not for the Display Update channel */
-    if (strcmp(args->name, DISP_DVC_CHANNEL_NAME) != 0)
+    if (strcmp(e->name, DISP_DVC_CHANNEL_NAME) != 0)
         return;
 
     /* Channel is no longer connected */
@@ -150,28 +149,56 @@ void guac_rdp_disp_load_plugin(rdpContext* context) {
 
 }
 
+/**
+ * Fits a given dimension within the allowed bounds for Display Update
+ * messages, adjusting the other dimension such that aspect ratio is
+ * maintained.
+ *
+ * @param a The dimension to fit within allowed bounds.
+ *
+ * @param b
+ *     The other dimension to adjust if and only if necessary to preserve
+ *     aspect ratio.
+ */
+static void guac_rdp_disp_fit(int* a, int* b) {
+
+    int a_value = *a;
+    int b_value = *b;
+
+    /* Ensure first dimension is within allowed range */
+    if (a_value < GUAC_RDP_DISP_MIN_SIZE) {
+
+        /* Adjust other dimension to maintain aspect ratio */
+        int adjusted_b = b_value * GUAC_RDP_DISP_MIN_SIZE / a_value;
+        if (adjusted_b > GUAC_RDP_DISP_MAX_SIZE)
+            adjusted_b = GUAC_RDP_DISP_MAX_SIZE;
+
+        *a = GUAC_RDP_DISP_MIN_SIZE;
+        *b = adjusted_b;
+
+    }
+    else if (a_value > GUAC_RDP_DISP_MAX_SIZE) {
+
+        /* Adjust other dimension to maintain aspect ratio */
+        int adjusted_b = b_value * GUAC_RDP_DISP_MAX_SIZE / a_value;
+        if (adjusted_b < GUAC_RDP_DISP_MIN_SIZE)
+            adjusted_b = GUAC_RDP_DISP_MIN_SIZE;
+
+        *a = GUAC_RDP_DISP_MAX_SIZE;
+        *b = adjusted_b;
+
+    }
+
+}
+
 void guac_rdp_disp_set_size(guac_rdp_disp* disp, guac_rdp_settings* settings,
         freerdp* rdp_inst, int width, int height) {
 
-    guac_rect resize = {
-        .left = 0,
-        .top = 0,
-        .right = width,
-        .bottom = height
-    };
+    /* Fit width within bounds, adjusting height to maintain aspect ratio */
+    guac_rdp_disp_fit(&width, &height);
 
-    /* Fit width and height within bounds, maintaining aspect ratio */
-    guac_rect_shrink(&resize, GUAC_RDP_DISP_MAX_SIZE, GUAC_RDP_DISP_MAX_SIZE);
-
-    width = guac_rect_width(&resize);
-    height = guac_rect_height(&resize);
-
-    /* As it's possible for a rectangle to exceed the maximum allowed
-     * dimensions, yet fall below the minimum allowed dimensions once adjusted,
-     * we don't bother preserving aspect ratio for the unlikely case that a
-     * dimension is below the minimums (consider a rectangle like 16384x256) */
-    if (width  < GUAC_RDP_DISP_MIN_SIZE) width  = GUAC_RDP_DISP_MIN_SIZE;
-    if (height < GUAC_RDP_DISP_MIN_SIZE) height = GUAC_RDP_DISP_MIN_SIZE;
+    /* Fit height within bounds, adjusting width to maintain aspect ratio */
+    guac_rdp_disp_fit(&height, &width);
 
     /* Width must be even */
     if (width % 2 == 1)

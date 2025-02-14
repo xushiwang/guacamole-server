@@ -19,8 +19,9 @@
 
 #include "channels/disp.h"
 #include "channels/rdpei.h"
+#include "common/cursor.h"
+#include "common/display.h"
 #include "input.h"
-#include "guacamole/display.h"
 #include "keyboard.h"
 #include "rdp.h"
 #include "settings.h"
@@ -28,7 +29,6 @@
 #include <freerdp/freerdp.h>
 #include <freerdp/input.h>
 #include <guacamole/client.h>
-#include <guacamole/display.h>
 #include <guacamole/recording.h>
 #include <guacamole/rwlock.h>
 #include <guacamole/user.h>
@@ -48,7 +48,7 @@ int guac_rdp_user_mouse_handler(guac_user* user, int x, int y, int mask) {
         goto complete;
 
     /* Store current mouse location/state */
-    guac_display_notify_user_moved_mouse(rdp_client->display, user, x, y, mask);
+    guac_common_cursor_update(rdp_client->display->cursor, user, x, y, mask);
 
     /* Report mouse position within recording */
     if (rdp_client->recording != NULL)
@@ -57,8 +57,7 @@ int guac_rdp_user_mouse_handler(guac_user* user, int x, int y, int mask) {
     /* If button mask unchanged, just send move event */
     if (mask == rdp_client->mouse_button_mask) {
         pthread_mutex_lock(&(rdp_client->message_lock));
-        GUAC_RDP_CONTEXT(rdp_inst)->input->MouseEvent(
-                GUAC_RDP_CONTEXT(rdp_inst)->input, PTR_FLAGS_MOVE, x, y);
+        rdp_inst->input->MouseEvent(rdp_inst->input, PTR_FLAGS_MOVE, x, y);
         pthread_mutex_unlock(&(rdp_client->message_lock));
     }
 
@@ -81,8 +80,7 @@ int guac_rdp_user_mouse_handler(guac_user* user, int x, int y, int mask) {
             if (released_mask & 0x04) flags |= PTR_FLAGS_BUTTON2;
 
             pthread_mutex_lock(&(rdp_client->message_lock));
-            GUAC_RDP_CONTEXT(rdp_inst)->input->MouseEvent(
-                    GUAC_RDP_CONTEXT(rdp_inst)->input, flags, x, y);
+            rdp_inst->input->MouseEvent(rdp_inst->input, flags, x, y);
             pthread_mutex_unlock(&(rdp_client->message_lock));
 
         }
@@ -100,8 +98,7 @@ int guac_rdp_user_mouse_handler(guac_user* user, int x, int y, int mask) {
 
             /* Send event */
             pthread_mutex_lock(&(rdp_client->message_lock));
-            GUAC_RDP_CONTEXT(rdp_inst)->input->MouseEvent(
-                    GUAC_RDP_CONTEXT(rdp_inst)->input, flags, x, y);
+            rdp_inst->input->MouseEvent(rdp_inst->input, flags, x, y);
             pthread_mutex_unlock(&(rdp_client->message_lock));
 
         }
@@ -112,16 +109,14 @@ int guac_rdp_user_mouse_handler(guac_user* user, int x, int y, int mask) {
             /* Down */
             if (pressed_mask & 0x08) {
                 pthread_mutex_lock(&(rdp_client->message_lock));
-                GUAC_RDP_CONTEXT(rdp_inst)->input->MouseEvent(
-                        GUAC_RDP_CONTEXT(rdp_inst)->input, PTR_FLAGS_WHEEL | 0x78, x, y);
+                rdp_inst->input->MouseEvent(rdp_inst->input, PTR_FLAGS_WHEEL | 0x78, x, y);
                 pthread_mutex_unlock(&(rdp_client->message_lock));
             }
 
             /* Up */
             if (pressed_mask & 0x10) {
                 pthread_mutex_lock(&(rdp_client->message_lock));
-                GUAC_RDP_CONTEXT(rdp_inst)->input->MouseEvent(
-                        GUAC_RDP_CONTEXT(rdp_inst)->input, PTR_FLAGS_WHEEL | PTR_FLAGS_WHEEL_NEGATIVE | 0x88, x, y);
+                rdp_inst->input->MouseEvent(rdp_inst->input, PTR_FLAGS_WHEEL | PTR_FLAGS_WHEEL_NEGATIVE | 0x88, x, y);
                 pthread_mutex_unlock(&(rdp_client->message_lock));
             }
 

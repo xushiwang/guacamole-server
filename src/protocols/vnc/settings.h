@@ -30,11 +30,6 @@
 #define GUAC_VNC_DEFAULT_RECORDING_NAME "recording"
 
 /**
- * The default number of seconds to attempt to connect to the SFTP server.
- */
-#define GUAC_VNC_DEFAULT_SFTP_TIMEOUT 10
-
-/**
  * VNC-specific client data.
  */
 typedef struct guac_vnc_settings {
@@ -58,12 +53,6 @@ typedef struct guac_vnc_settings {
      * The password given in the arguments.
      */
     char* password;
-
-    /**
-     * Disable the VNC client messages to request that the remote (server)
-     * display resize to match the client resolution.
-     */
-    bool disable_display_resize;
 
     /**
      * Space-separated list of encodings to use within the VNC session.
@@ -92,16 +81,6 @@ typedef struct guac_vnc_settings {
      * compression only.
      */
     bool lossless;
-
-    /**
-     * The level of compression to ask the VNC client library to perform.
-     */
-    int compress_level;
-
-     /**
-      * The quality level to ask the VNC client library to maintain.
-      */
-    int quality_level;
 
 #ifdef ENABLE_VNC_REPEATER
     /**
@@ -194,11 +173,6 @@ typedef struct guac_vnc_settings {
     char* sftp_port;
 
     /**
-     * The number of seconds to attempt to connect to the SFTP server.
-     */
-    int sftp_timeout;
-
-    /**
      * The username to provide when authenticating with the SSH server for
      * SFTP.
      */
@@ -221,12 +195,6 @@ typedef struct guac_vnc_settings {
      * key.
      */
     char* sftp_passphrase;
-
-    /**
-     * The base64-encoded public key to use when authenticating with the SSH
-     * server for SFTP using key-based authentication.
-     */
-    char* sftp_public_key;
 
     /**
      * The default location for file uploads within the SSH server. This will
@@ -306,12 +274,6 @@ typedef struct guac_vnc_settings {
      * as passwords, credit card numbers, etc.
      */
     bool recording_include_keys;
-
-    /**
-     * Whether existing files should be appended to when creating a new recording.
-     * Disabled by default.
-     */
-    bool recording_write_existing;
     
     /**
      * Whether or not to send the magic Wake-on-LAN (WoL) packet prior to
@@ -342,11 +304,6 @@ typedef struct guac_vnc_settings {
      * attempting to connect to the remote host.
      */
     int wol_wait_time;
-
-    /**
-     * Whether or not to disable the input on the server side.
-     */
-    bool disable_server_input;
 
 } guac_vnc_settings;
 

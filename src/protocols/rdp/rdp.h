@@ -25,7 +25,9 @@
 #include "channels/disp.h"
 #include "channels/rdpei.h"
 #include "common/clipboard.h"
+#include "common/display.h"
 #include "common/list.h"
+#include "common/surface.h"
 #include "config.h"
 #include "fs.h"
 #include "keyboard.h"
@@ -40,30 +42,14 @@
 
 #include <freerdp/codec/color.h>
 #include <freerdp/freerdp.h>
-#include <freerdp/client/rail.h>
 #include <guacamole/audio.h>
 #include <guacamole/client.h>
-#include <guacamole/display.h>
 #include <guacamole/rwlock.h>
 #include <guacamole/recording.h>
 #include <winpr/wtypes.h>
 
 #include <pthread.h>
 #include <stdint.h>
-
-#ifdef HAVE_WINPR_ALIGNED
-#define GUAC_ALIGNED_FREE winpr_aligned_free
-#define GUAC_ALIGNED_MALLOC winpr_aligned_malloc
-#else
-#define GUAC_ALIGNED_FREE _aligned_free
-#define GUAC_ALIGNED_MALLOC _aligned_malloc
-#endif
-
-#ifdef FREERDP_HAS_CONTEXT
-#define GUAC_RDP_CONTEXT(rdp_instance) ((rdp_instance)->context)
-#else
-#define GUAC_RDP_CONTEXT(rdp_instance) ((rdp_instance))
-#endif
 
 /**
  * RDP-specific client data.
@@ -98,27 +84,13 @@ typedef struct guac_rdp_client {
     /**
      * The display.
      */
-    guac_display* display;
+    guac_common_display* display;
 
     /**
      * The surface that GDI operations should draw to. RDP messages exist which
      * change this surface to allow drawing to occur off-screen.
      */
-    guac_display_layer* current_surface;
-
-    /**
-     * The current raw context that can be used to draw to Guacamole's default
-     * layer. This context is obtained prior to FreeRDP manipulation of the GDI
-     * buffer and closed when FreeRDP is done with the GDI buffer. If no
-     * drawing to the GDI is currently underway, this will be NULL.
-     */
-    guac_display_layer_raw_context* current_context;
-
-    /**
-     * The current instance of the guac_display render thread. If the thread
-     * has not yet been started, this will be NULL.
-     */
-    guac_display_render_thread* render_thread;
+    guac_common_surface* current_surface;
 
     /**
      * The current state of the keyboard with respect to the RDP session.
@@ -206,12 +178,6 @@ typedef struct guac_rdp_client {
      * attempts to send RDP messages never overlap.
      */
     pthread_mutex_t message_lock;
-
-    /**
-     * A pointer to the RAIL interface provided by the RDP client when rail is
-     * in use.
-     */
-    RailClientContext* rail_interface;
 
 } guac_rdp_client;
 

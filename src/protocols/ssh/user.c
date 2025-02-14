@@ -21,6 +21,7 @@
 
 #include "argv.h"
 #include "clipboard.h"
+#include "common/display.h"
 #include "input.h"
 #include "user.h"
 #include "pipe.h"

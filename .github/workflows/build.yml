@@ -3,7 +3,7 @@ name: Push request CI build
 on:
   # Triggers the workflow on push or pull request events but only for the master branch
   push:
-    branches: [ main ]
+    branches: [ main,1.5.5 ]
 
 # Limit to only one build for a given PR source branch at a time,
 # cancelling any in-progress builds
@@ -38,4 +38,4 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/amd64
-          tags: zerotrustengine/guacd:amd64-latest
+          tags: zerotrustengine/guacd:amd64-1.5.5

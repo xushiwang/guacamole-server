@@ -17,7 +17,7 @@
 # under the License.
 #
 
-parent  "base_altgr"
+parent  "base"
 name    "pt-br-qwerty"
 freerdp "KBD_PORTUGUESE_BRAZILIAN_ABNT2"
 

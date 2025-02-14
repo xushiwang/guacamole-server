@@ -17,7 +17,7 @@
 # under the License.
 #
 
-parent  "base_altgr"
+parent  "base"
 name    "da-dk-qwerty"
 freerdp "KBD_DANISH"
 
