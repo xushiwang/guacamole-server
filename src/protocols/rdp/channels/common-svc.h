@@ -39,7 +39,7 @@
  * within any single write operation, regardless of the number of chunks that
  * write is split into. Bytes beyond this limit may be dropped.
  */
-#define GUAC_SVC_MAX_ASSEMBLED_LENGTH 1048576
+#define GUAC_SVC_MAX_ASSEMBLED_LENGTH 2097152
 
 /**
  * Structure describing a static virtual channel, and the corresponding
